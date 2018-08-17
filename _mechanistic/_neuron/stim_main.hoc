@@ -1,0 +1,80 @@
+/*
+Script to generate the waveform for extracellular stimulation
+
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+objref stim_vec
+stim_vec = new Vector()
+
+// change values based on diameter of fiber
+DUR = 0.35   // 350us
+AMP = -2.5  // mA
+
+// this works with fixed dt and adaptive integration
+objref stim_amp, stim_time
+stim_amp = new Vector()
+stim_time = new Vector()
+
+proc stim_waveform() { local i, num  localobj tmp, tmp1
+  num = $o1.size
+  // first construct the time vector
+  stim_time = $o1.c
+  stim_time.append($o1) // now contains 2*num values
+  tmp = new Vector()
+  tmp1 = new Vector()
+  tmp = stim_time.c
+  tmp.add($2/2)
+  tmp1 = stim_time.c
+  tmp1.add($2)
+  stim_time.append(0,tmp) // 0 for value at t==0, now contains 4*num + 1 values
+  stim_time.append(tmp1) // now contains 6*num + 1 values
+  stim_time.sort()
+  stim_time.append(1+stim_time.max()) // so end of last pulse leaves e_extracellular == 0
+    // now contains 4*num + 2 values
+  // next construct the stim vector
+  stim_amp.resize(stim_time.size())
+  stim_amp.fill(0)
+  i = 2
+  while (i < 6 *num) {
+    stim_amp.x[i] = 1
+    stim_amp.x[i+1] = 1
+    stim_amp.x[i+2] = -1
+    stim_amp.x[i+3] = -1
+    i+=6
+  }
+  stim_amp.mul($3)
+}
+
+proc attach_stim() {
+// since is_xtra is GLOBAL, we only need to specify Vector.play()
+// for one instance of xtra, i.e. at just one internal node
+// of only one section that contains xtra
+  forall {  // check each section to find one that has xtra
+      if (ismembrane("xtra")) {
+        stim_amp.play(&is_xtra, stim_time, 1) // "interpolated" play
+      }
+  }
+}
+
+objref in_senfile
+strdef stim_file
+
+proc setstim() {
+  ival = $1
+  dur = $2
+  amp = $3
+  stim_term = $4
+  ks_val = $5
+  stim_vec.indgen(0,stim_term,1000/ival)
+  
+  sprint(stim_file, "%d%s.%s", ks_val,"Stim", "dat")
+    in_senfile = new File(stim_file)
+    in_senfile.wopen()
+    stim_vec.printf(in_senfile)
+    in_senfile.close()
+  
+  stim_waveform(stim_vec, dur, amp)
+  attach_stim()
+}

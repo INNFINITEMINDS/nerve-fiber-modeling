@@ -1,0 +1,60 @@
+/*
+Code to create and apply the physiological input at the bottom end of the nerve fiber
+
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+// We use the Ipulse3 method to introduce the physiological input
+
+objref curr, vs, nc, sen_vec
+
+proc sen_waveform() { 
+
+sen_vec = $o1
+node[0] curr = new Ipulse3(0)
+
+curr.amp = $3 //nA
+curr.dur = $2
+
+vs = new VecStim()
+vs.play(sen_vec)
+
+nc = new NetCon(vs, curr)
+nc.delay = 0
+}
+
+proc setsen() {
+sen_times = $1
+sen_dur = $2
+sen_amp = $3
+sen_term = $4
+kval = $5
+poission(sen_times, sen_dur, sen_amp, sen_term, kval)
+}
+
+timeSteps = dt/1000
+objref times, vt, rand_val, vec_ind, in_file
+strdef sen_file
+
+rand_val = new Random()
+proc poission() {
+    times = new Vector()
+    vec_ind = new Vector()
+    times.indgen(0, $4/1000, timeSteps)
+    vt = new Vector(times.size())
+    
+    temp = rand_val.uniform(0,1)
+    vt.setrand(rand_val,0,times.size()-1)
+    
+    vec_ind.indvwhere(vt,"<", (timeSteps*$1))
+    vec_ind.mul(timeSteps)
+    vec_ind.mul(1000)
+    
+    sprint(sen_file, "%d%s.%s", $5,"Sen", "dat")
+    in_file = new File(sen_file)
+    in_file.wopen()
+    vec_ind.printf(in_file)
+    in_file.close()
+    sen_waveform(vec_ind, sen_dur, sen_amp)
+}

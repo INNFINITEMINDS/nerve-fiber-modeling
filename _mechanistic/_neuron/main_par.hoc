@@ -1,0 +1,130 @@
+/*
+Script to simulate the constructed model for 50 different trials and also detect the peaks of action potentials at each node
+
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+// Define Parameters
+
+nodes_recorded = (nn - 1)/2 - (2*(nn-1))/10 // Number of nodes to record at
+nodes_recorded = gceil(nodes_recorded)
+StimDuration = 30000 // Duration of simulation, 30sec
+
+objref tempmatrix, savedata
+objref rec_val[nodes_recorded], max_val[nodes_recorded], timex, vecx, vecx_ind
+objref maxAt, maxValues, minAt, minValues
+
+// Procedure to detect peaks
+proc peakdet() {
+    mn = 1e9
+    mx = -1e9
+    lookformax = 1
+    delta = 0.5
+    mxpos = 0
+    mnpos = 0
+    threshPeak = -20
+    timex = new Vector()
+    vecx = new Vector()
+    maxAt = new Vector()
+    maxValues = new Vector()
+    minAt = new Vector()
+    minValues = new Vector()
+    vecx_ind = new Vector()
+    
+    vecx = $o1
+    vecx_ind.indvwhere(vecx, "<", threshPeak)
+    for c = 0, vecx_ind.size()-1 {
+        vecx.x[vecx_ind.x[c]] = threshPeak
+    }
+    n = vecx.size()
+    timex.indgen(0,StimDuration,dt)
+
+    for b = 1, n-2 {
+        this = vecx.x[b]
+        if(this > mx){
+            mx = this
+            mxpos = timex.x[b]
+        }
+        if(this < mn){
+            mn = this
+            mnpos = timex.x[b]
+        }
+        
+        if(lookformax) {
+            if(this < mx-delta) {
+                maxAt.append(mxpos)
+                maxValues.append(mx)
+                mn = this
+                mnpos = timex.x[b]
+                lookformax = 0
+            }
+        
+        } else {
+            if(this > mn+delta){
+            minAt.append(mnpos)
+            minValues.append(mn)
+            mx = this
+            mxpos = timex.x[b]
+            lookformax = 1
+            }
+        }
+    }
+}
+
+// Procedure to record all the nodes 
+proc recordAll() {
+
+    for m = 0, nodes_recorded -1 {
+        rec_val[m] = new Vector()
+        rec_val[m].record(&node[m+10].v(0.5))   
+    }
+    
+}
+
+objref vec_diff, diff_ind, new_ind
+
+// Call the peakdet procedure for each recording
+proc peakAll() {
+    for f = 0, nodes_recorded -1 {
+        vec_diff = new Vector()
+        diff_ind = new Vector()
+        new_ind = new Vector()
+        max_val[f] = new Vector()
+        peakdet(rec_val[f])
+        vec_diff.deriv(maxAt,1,1)
+        vec_diff.insrt(0, 3)
+        diff_ind.indvwhere(vec_diff, ">", 2.5)
+        new_ind = maxAt.ind(diff_ind)
+        max_val[f] = new_ind
+    }
+}
+
+strdef file, folder, temp1
+chdir("Path to save data") // Path on home directory to save
+sprint(temp1, "%s%d%s%d", "Stim", Stim_Val, "Sen", Sen_Val)
+sprint(folder, "%s%s", "mkdir ",temp1)
+system(folder)
+chdir(temp1)
+k = 0
+
+// Main block to run all the above procedures for 50 trials
+
+while(k < 50) {
+    tempmatrix = new Matrix()
+    setstim(Stim_Val, 0.35, -2.0, StimDuration, k) // stimulus input
+    setsen(Sen_Val, 1, 6, StimDuration, k) // physiological input
+    recordAll()
+    run()
+    peakAll()
+    for p = 0, nodes_recorded-1 {
+        tempmatrix.resize(max_val[p].size(),nodes_recorded)
+        tempmatrix.setcol(p, max_val[p])   
+    }
+    sprint(file, "%d.%s", k, "dat")
+    savedata = new File(file)
+    savedata.wopen()
+    tempmatrix.fprint(savedata,"%10f ")
+    savedata.close()
+    k+=1
+    }

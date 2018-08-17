@@ -1,0 +1,72 @@
+/* This code creates a 10cm long nerve fiber with srb nodes
+
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+load_file("stdgui.hoc")
+
+//Run parameters
+tstop = 30000 // 30 seconds
+v_init = -84
+dt = 0.001 //ms
+{celsius = 37}
+
+// Define Parameters
+d = 6 // axon diameter
+rho_i = (110/15) // Ohm cm
+l = 2.5 // um // nodal gap width
+rifd = 100 // ratio of internodal space to fiber diameter 
+rafd = 1 // ratio of axon to fiber diameters
+
+Df = d/rafd 
+Li = Df*rifd // length of internodal section 
+L_Bundle = 100000
+numbnodes= 1+(L_Bundle/(l+Li)) 
+nn = gceil(numbnodes) // number of nodes
+Er= -84 // mV 
+
+create myelin[nn-1], node[nn]
+
+for i=0, nn-2 {
+    connect myelin[i](0), node[i](1)
+    connect node[i+1](0), myelin[i](1)
+}
+
+forsec "node" { 
+    nseg = 1
+    diam = d
+    L = l
+    Ra = rho_i
+    cm = 2.8
+    
+    insert srb
+    insert extracellular xraxial=1e9 xg=1e9 xc=0 e_extracellular=0
+    insert xtra 
+}
+
+forsec "myelin" {
+    nseg = 1
+    cm = 0
+    L = Li
+    diam = d
+    Ra = rho_i
+   
+    insert pas
+    e_pas = -84
+    g_pas = 0
+    
+    insert extracellular xraxial=1e9 xg=1e9 xc=0 e_extracellular=0
+    insert xtra
+}
+
+forall {
+    define_shape()
+}
+
+load_file("interpxyz.hoc")      // only interpolates sections that have extracellular
+load_file("setpointers.hoc")    // automatically calls grindaway() in interpxyz.hoc
+load_file("calcrxc.hoc")        // computes transfer r between segments and recording electrodes
+load_file("stim_main.hoc")      // extracellular stimulus
+load_file("sen_main.hoc")       // physiological stimulus
+load_file("main_par.hoc")       // Calls the simulation 50 times

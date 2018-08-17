@@ -1,0 +1,55 @@
+/* This script is called by the mytest.sh script to schedule on cluster.
+Here we define the different frequency steps for stimulus and physiological input
+
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+objref Stim_Vec, Sen_Vec, inp_mat, tmp
+strdef ret
+Stim_Vec = new Vector()
+Sen_Vec = new Vector()
+inp_mat = new Matrix()
+tmp = new Vector()
+
+
+Stim_Vec.indgen(1,51,4) // Both physiological and stimulus range between 1 to 51 Hz with a step of 4Hz
+Sen_Vec.indgen(1,51,4)
+tmp = Stim_Vec.c
+
+for m = 0, Stim_Vec.size()-2 {
+   Stim_Vec.append(tmp)
+   Sen_Vec.append(tmp)
+}
+
+Sen_Vec.sort()
+inp_mat.resize(Stim_Vec.size(),2)
+inp_mat.setcol(0, Stim_Vec)
+inp_mat.setcol(1, Sen_Vec)
+
+func load_main() {
+   Stim_Val = $1
+   Sen_Val = $2
+   load_file("/home/vsadashi/neuron/codes/Cluster_codes/9um/work_par.hoc") // Call the nerve fiber hoc
+   return(1)
+}
+
+objref pc
+pc = new ParallelContext()
+pc.runworker()          // master returns immediately, workers in
+                        // infinite loop running and jobs from bulletin board
+s = 0
+if (pc.nhost == 1) {    // use the serial form
+   print "serial Run... ending"
+}else{    
+   for i = 0, Stim_Vec.size()-1{
+      stim = inp_mat.getval(i,0)
+      sen = inp_mat.getval(i,1)
+      pc.submit("load_main",stim,sen)
+   }              // use the bulletin board form
+
+   while (pc.working) { // gather results
+      s += pc.retval    // the return value for the executed function
+   }
+}
+pc.done                 // tell workers to quit

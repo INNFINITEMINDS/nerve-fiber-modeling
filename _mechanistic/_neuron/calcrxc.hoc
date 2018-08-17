@@ -1,0 +1,40 @@
+/*
+Script to setup extracellular stimulating electrode at (X, Y, Z)
+
+Modified from source files created by Ted
+Vijay Sadashivaiah, Neuromedical Control Systems Lab
+Johns Hopkins University
+*/
+
+// set up the transfer resistances
+
+// what is the approximate resistivity of tissue anyway?
+rho = 300  // ohm cm
+
+
+// assume monopolar stimulation and recording
+// electrode coordinates:
+XE = 50000  // um
+YE = 3400
+ZE = 0
+
+proc setrx() {  // now expects xyc coords as arguments
+  forall {
+    if (ismembrane("xtra")) {
+      for (x,0) {
+        r = sqrt((x_xtra(x) - xe)^2 + (y_xtra(x) - ye)^2 + (z_xtra(x) - ze)^2)
+        if (r==0) r = diam(x)/2
+        rx_xtra(x) = (rho / 4 / PI)*(1/r)*0.01
+      }
+    }
+  }
+}
+
+proc setelec() {
+	xe = $1
+	ye = $2
+	ze = $3
+	setrx(xe, ye, ze)
+}
+
+setelec(XE, YE, ZE)  // put stim electrode at (x, y, z)
